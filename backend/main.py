@@ -23,6 +23,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_origins=["*", "https://drape-frontend.onrender.com"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
