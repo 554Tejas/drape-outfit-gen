@@ -802,6 +802,7 @@
 
 <script>
   const API = 'https://drape-outfit-gen.onrender.com';
+  
   let imageCount = 4;
   let uploadedOutfits   = [];   // { outfit_id, filename, ... }
   let uploadedRefs      = [];   // { ref_id, filename, ref_type, ... }
@@ -888,7 +889,7 @@
     });
 
     try {
-      const res  = await fetch(`${API}/upload/outfit`, { method: 'POST', body: fd });
+      const res  = await fetch(`${API}/api/upload/outfit`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Upload failed');
       data.forEach(o => uploadedOutfits.push(o));
@@ -913,7 +914,7 @@
     fd.append('ref_type', document.getElementById('refType').value);
 
     try {
-      const res  = await fetch(`${API}/upload/reference`, { method: 'POST', body: fd });
+      const res  = await fetch(`${API}/api/upload/reference`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Upload failed');
       data.forEach(r => uploadedRefs.push(r));
@@ -932,7 +933,7 @@
     const url = document.getElementById('driveOutfitUrl').value.trim();
     if (!url) return;
     try {
-      const res = await fetch(`${API}/upload/drive/outfits`, {
+      const res = await fetch(`${API}/api/upload/drive/outfits`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ folder_url: url }),
       });
@@ -947,7 +948,7 @@
     const url = document.getElementById('driveRefUrl').value.trim();
     if (!url) return;
     try {
-      const res = await fetch(`${API}/upload/drive/references`, {
+      const res = await fetch(`${API}/api/upload/drive/references`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ folder_url: url, ref_type: document.getElementById('refType').value }),
       });
@@ -962,7 +963,7 @@
   async function loadAssets() {
     try {
       const [oRes, rRes] = await Promise.all([
-        fetch(`${API}/upload/outfits`), fetch(`${API}/upload/references`)
+        fetch(`${API}/api/upload/outfits`), fetch(`${API}/api/upload/references`)
       ]);
       const outfits = await oRes.json();
       const refs    = await rRes.json();
@@ -1029,7 +1030,7 @@
     const outfitId = [...selectedOutfits][0];
     const refIds   = [...selectedRefs].join(',');
     try {
-      const res  = await fetch(`${API}/generate/preview-prompt/${outfitId}?reference_ids=${refIds}`);
+      const res  = await fetch(`${API}/api/generate/preview-prompt/${outfitId}?reference_ids=${refIds}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail);
       document.getElementById('promptPositive').textContent = data.prompt;
@@ -1059,7 +1060,7 @@
         custom_prompt_notes: document.getElementById('customNotes').value || null,
         preview_prompts: false,
       };
-      const res  = await fetch(`${API}/generate/`, {
+      const res  = await fetch(`${API}/api/generate/`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify(body),
       });
@@ -1105,7 +1106,7 @@
     if (activePollers[jobId]) return;
     activePollers[jobId] = setInterval(async () => {
       try {
-        const res  = await fetch(`${API}/generate/status/${jobId}`);
+        const res  = await fetch(`${API}/api/generate/status/${jobId}`);
         const data = await res.json();
         updateJobCard(data);
         if (['completed','failed','partial'].includes(data.status)) {
@@ -1137,7 +1138,7 @@
   }
 
   async function downloadJobZip(jobId) {
-    window.open(`${API}/download/job/${jobId}/zip`, '_blank');
+    window.open(`${API}/api/download/job/${jobId}/zip`, '_blank');
   }
 
   // ── Gallery ───────────────────────────────────────────────────────
@@ -1145,7 +1146,7 @@
     const container = document.getElementById('galleryContainer');
     container.innerHTML = '<span style="color:var(--muted);font-size:0.78rem">Loading gallery…</span>';
     try {
-      const res  = await fetch(`${API}/gallery/`);
+      const res  = await fetch(`${API}/api/gallery/`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail);
 
@@ -1197,11 +1198,11 @@
   }
 
   function downloadImage(outfitId, filename) {
-    window.open(`${API}/download/image/${outfitId}/${filename}`, '_blank');
+    window.open(`${API}/api/download/image/${outfitId}/${filename}`, '_blank');
   }
 
   function downloadOutfitZip(outfitId) {
-    window.open(`${API}/download/outfit/${outfitId}/zip`, '_blank');
+    window.open(`${API}/api/download/outfit/${outfitId}/zip`, '_blank');
   }
 
   function viewPrompt(prompt) {
@@ -1214,7 +1215,7 @@
   async function loadAdmin() {
     try {
       const [statsRes, jobsRes] = await Promise.all([
-        fetch(`${API}/admin/stats`), fetch(`${API}/admin/jobs`)
+        fetch(`${API}/api/admin/stats`), fetch(`${API}/api/admin/jobs`)
       ]);
       const stats = await statsRes.json();
       const jobs  = await jobsRes.json();
@@ -1254,7 +1255,7 @@
   }
 
   async function cancelJob(jobId) {
-    await fetch(`${API}/admin/jobs/${jobId}`, { method: 'DELETE' });
+    await fetch(`${API}/api/admin/jobs/${jobId}`, { method: 'DELETE' });
     loadAdmin();
   }
 
