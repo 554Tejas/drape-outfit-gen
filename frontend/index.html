@@ -539,7 +539,6 @@
 <body>
 <div class="app">
 
-  <!-- ── Header ─────────────────────────────────────────────────── -->
   <header>
     <div>
       <div class="logo">DRAPE<span>AI Outfit Image Generator</span></div>
@@ -552,7 +551,6 @@
     </div>
   </header>
 
-  <!-- ── Nav ────────────────────────────────────────────────────── -->
   <nav class="nav">
     <div class="nav-tab active" data-panel="upload">01 · Upload</div>
     <div class="nav-tab" data-panel="generate">02 · Generate</div>
@@ -560,17 +558,14 @@
     <div class="nav-tab" data-panel="admin">04 · Admin</div>
   </nav>
 
-  <!-- ── Main ───────────────────────────────────────────────────── -->
   <main>
 
-    <!-- ══ PANEL 1 — UPLOAD ══════════════════════════════════════ -->
     <div id="panel-upload" class="tab-panel active">
       <h2 class="section-title">Upload Assets</h2>
       <p class="section-subtitle">Upload outfit images (the product — never changes) and reference images for model, vibe, background, pose, and lighting.</p>
 
       <div class="grid-2">
 
-        <!-- Outfit uploads -->
         <div class="card">
           <h3 style="font-family:var(--ff-serif);font-size:1.1rem;font-weight:300;margin-bottom:0.3rem;color:var(--text)">Outfit Images</h3>
           <p style="font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.6">The garment. Every detail will be preserved exactly.</p>
@@ -625,7 +620,6 @@
           </div>
         </div>
 
-        <!-- Reference uploads -->
         <div class="card">
           <h3 style="font-family:var(--ff-serif);font-size:1.1rem;font-weight:300;margin-bottom:0.3rem;color:var(--text)">Reference Images</h3>
           <p style="font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.6">Set the creative direction — model, pose, background, lighting, vibe.</p>
@@ -674,7 +668,6 @@
         </div>
       </div>
 
-      <!-- Uploaded items summary -->
       <div style="margin-top:1.5rem" class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
           <span style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Uploaded Items</span>
@@ -684,7 +677,6 @@
       </div>
     </div>
 
-    <!-- ══ PANEL 2 — GENERATE ═════════════════════════════════════ -->
     <div id="panel-generate" class="tab-panel">
       <h2 class="section-title">Generate Images</h2>
       <p class="section-subtitle">Select outfits and references, set count, then run generation via Nano Banana 2.</p>
@@ -732,7 +724,6 @@
 
           <div id="generateAlert" style="margin-top:1rem"></div>
 
-          <!-- Active jobs -->
           <hr class="sep" />
           <p class="form-label" style="margin-bottom:0.8rem">Active Jobs</p>
           <div id="jobsList">
@@ -742,7 +733,6 @@
       </div>
     </div>
 
-    <!-- ══ PANEL 3 — GALLERY ══════════════════════════════════════ -->
     <div id="panel-gallery" class="tab-panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">
         <div>
@@ -757,7 +747,6 @@
       </div>
     </div>
 
-    <!-- ══ PANEL 4 — ADMIN ════════════════════════════════════════ -->
     <div id="panel-admin" class="tab-panel">
       <h2 class="section-title">Admin Dashboard</h2>
       <p class="section-subtitle">System stats, job logs, and storage overview.</p>
@@ -798,7 +787,6 @@
   </main>
 </div>
 
-<!-- ── Prompt Preview Modal ──────────────────────────────────────── -->
 <div class="modal-backdrop" id="promptModal">
   <div class="modal">
     <div class="modal-title">Prompt Preview</div>
@@ -812,7 +800,6 @@
   </div>
 </div>
 
-<!-- ── Scripts ────────────────────────────────────────────────────── -->
 <script>
   const API = 'https://drape-outfit-gen.onrender.com';
   let imageCount = 4;
@@ -1167,10 +1154,13 @@
         return;
       }
 
+      // Helper to cleanly append API to the URL without duplicate slashes
+      const getUrl = (path) => path.startsWith('http') ? path : (API + (path.startsWith('/') ? '' : '/') + path);
+
       container.innerHTML = data.groups.map(group => `
         <div class="gallery-group">
           <div class="gallery-group-header">
-            <img class="outfit-thumb" src="${group.outfit_url}" alt="${group.outfit_filename}" onerror="this.style.display='none'" />
+            <img class="outfit-thumb" src="${getUrl(group.outfit_url)}" alt="${group.outfit_filename}" onerror="this.style.display='none'" />
             <div class="outfit-info">
               <div class="outfit-name">${group.name || group.outfit_filename}</div>
               <div class="outfit-meta-row">
@@ -1183,7 +1173,7 @@
           <div class="image-gallery">
             ${group.images.map((img, idx) => img.status === 'success' ? `
               <div class="gallery-item">
-                <img src="${img.url}" alt="Generated ${idx+1}" loading="lazy" onerror="this.parentElement.classList.add('failed');this.remove()" />
+                <img src="${getUrl(img.url)}" alt="Generated ${idx+1}" loading="lazy" onerror="this.parentElement.classList.add('failed');this.remove()" />
                 <div class="gallery-item-overlay">
                   <div class="gallery-item-actions">
                     <button class="btn btn-outline btn-sm" onclick="downloadImage('${group.outfit_id}','${img.filename}')">↓ Save</button>
