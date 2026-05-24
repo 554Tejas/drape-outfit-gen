@@ -1,0 +1,44 @@
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+*.json
+!package.json
+!package-lock.json
+service-account-key.json
+.env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# ── Storage (generated data — not for version control) ────────────────────────
+backend/storage/
+data/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Node (if any frontend tooling added later) ───────────────────────────────
+node_modules/

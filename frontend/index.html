@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DRAPE — AI Outfit Image Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & tokens ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0d0b;
+      --surface:  #141412;
+      --card:     #1a1a17;
+      --border:   #2a2a26;
+      --border2:  #3a3a34;
+      --text:     #e8e6df;
+      --muted:    #7a7870;
+      --accent:   #c9a96e;
+      --accent2:  #e8c98a;
+      --danger:   #c97070;
+      --success:  #7eb89a;
+      --ff-serif: 'Cormorant Garamond', Georgia, serif;
+      --ff-mono:  'DM Mono', 'Courier New', monospace;
+      --radius:   4px;
+      --radius-lg: 8px;
+      --trans:    200ms ease;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--ff-mono);
+      font-size: 0.82rem;
+      font-weight: 300;
+      letter-spacing: 0.02em;
+      min-height: 100vh;
+    }
+
+    /* ── Scrollbar ──────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ── Noise overlay ──────────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 999;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.4;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.5rem 2.5rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,13,11,0.92);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      font-family: var(--ff-serif);
+      font-size: 2rem;
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .logo span { color: var(--muted); font-size: 0.75rem; font-family: var(--ff-mono); letter-spacing: 0.12em; display: block; margin-top: -4px; }
+
+    .header-right { display: flex; gap: 1.5rem; align-items: center; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Nav tabs ────────────────────────────────────────────────────────── */
+    .nav {
+      display: flex;
+      padding: 0 2.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      gap: 0;
+    }
+
+    .nav-tab {
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-bottom: 2px solid transparent;
+      transition: var(--trans);
+      user-select: none;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Main ────────────────────────────────────────────────────────────── */
+    main { flex: 1; padding: 2rem 2.5rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+    /* ── Section titles ──────────────────────────────────────────────────── */
+    .section-title {
+      font-family: var(--ff-serif);
+      font-size: 1.6rem;
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+    .section-subtitle {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    /* ── Cards ───────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+    }
+
+    /* ── Grid ────────────────────────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+
+    /* ── Drop zone ───────────────────────────────────────────────────────── */
+    .dropzone {
+      border: 1px dashed var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--trans), background var(--trans);
+      position: relative;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: rgba(201,169,110,0.04);
+    }
+    .dropzone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .dropzone-icon {
+      font-size: 2rem;
+      margin-bottom: 0.8rem;
+      display: block;
+      color: var(--muted);
+    }
+    .dropzone-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .dropzone-label strong { color: var(--accent); font-weight: 400; }
+
+    /* ── Preview thumbnails ──────────────────────────────────────────────── */
+    .preview-grid {
+      display: flex; flex-wrap: wrap; gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .preview-thumb {
+      position: relative;
+      width: 90px; height: 120px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-thumb .remove-btn {
+      position: absolute; top: 4px; right: 4px;
+      width: 18px; height: 18px;
+      background: rgba(0,0,0,0.75);
+      border: none; border-radius: 50%;
+      color: var(--text); font-size: 0.65rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background var(--trans);
+    }
+    .preview-thumb .remove-btn:hover { background: var(--danger); }
+    .preview-thumb .thumb-label {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.8));
+      font-size: 0.6rem; color: #fff; padding: 0.3rem 0.4rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── Form elements ───────────────────────────────────────────────────── */
+    .form-row { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+    .form-label { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    input[type="text"], input[type="number"], select, textarea {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--ff-mono);
+      font-size: 0.82rem;
+      padding: 0.6rem 0.8rem;
+      width: 100%;
+      transition: border-color var(--trans);
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    select { cursor: pointer; }
+    textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 1.4rem;
+      border-radius: var(--radius);
+      font-family: var(--ff-mono);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all var(--trans);
+      text-transform: uppercase;
+      font-weight: 400;
+      user-select: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #1a1408;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--border2);
+    }
+    .btn-outline:hover { border-color: var(--text); }
+
+    .btn-ghost {
+      background: transparent; color: var(--muted);
+      border-color: transparent;
+    }
+    .btn-ghost:hover { color: var(--text); }
+
+    .btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: var(--danger); color: #fff; }
+
+    .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.72rem; }
+
+    /* ── Tag pills ───────────────────────────────────────────────────────── */
+    .tag {
+      display: inline-flex; align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tag-model      { background: rgba(126,184,154,0.12); color: var(--success); border: 1px solid rgba(126,184,154,0.25); }
+    .tag-vibe       { background: rgba(201,169,110,0.12); color: var(--accent);  border: 1px solid rgba(201,169,110,0.25); }
+    .tag-background { background: rgba(160,130,200,0.12); color: #c8a0e8;        border: 1px solid rgba(160,130,200,0.25); }
+    .tag-pose       { background: rgba(120,160,220,0.12); color: #90b0e0;        border: 1px solid rgba(120,160,220,0.25); }
+    .tag-lighting   { background: rgba(220,180,100,0.12); color: #e0c080;        border: 1px solid rgba(220,180,100,0.25); }
+    .tag-camera     { background: rgba(200,120,120,0.12); color: #e08080;        border: 1px solid rgba(200,120,120,0.25); }
+    .tag-brand      { background: rgba(100,180,200,0.12); color: #80c8e0;        border: 1px solid rgba(100,180,200,0.25); }
+    .tag-other      { background: rgba(122,120,112,0.12); color: var(--muted);   border: 1px solid var(--border); }
+
+    /* ── Progress bar ────────────────────────────────────────────────────── */
+    .progress-bar-track {
+      width: 100%; height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    /* ── Job status card ─────────────────────────────────────────────────── */
+    .job-card {
+      padding: 1.2rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 1rem;
+    }
+    .job-card.processing { border-color: var(--accent); }
+    .job-card.completed  { border-color: var(--success); }
+    .job-card.failed     { border-color: var(--danger); }
+    .job-card.partial    { border-color: #e0c080; }
+
+    .job-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.8rem;
+    }
+    .job-id { font-size: 0.7rem; color: var(--muted); }
+    .job-status-badge {
+      padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.68rem; text-transform: uppercase;
+    }
+    .badge-processing { background: rgba(201,169,110,0.12); color: var(--accent); }
+    .badge-completed  { background: rgba(126,184,154,0.12); color: var(--success); }
+    .badge-failed     { background: rgba(201,112,112,0.12); color: var(--danger); }
+    .badge-partial    { background: rgba(224,192,128,0.12); color: #e0c080; }
+    .badge-pending    { background: rgba(122,120,112,0.12); color: var(--muted); }
+
+    /* ── Gallery ─────────────────────────────────────────────────────────── */
+    .gallery-group { margin-bottom: 3rem; }
+    .gallery-group-header {
+      display: flex; align-items: center; gap: 1rem;
+      margin-bottom: 1.2rem;
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .outfit-thumb {
+      width: 56px; height: 72px;
+      border-radius: var(--radius);
+      object-fit: cover;
+      border: 1px solid var(--border);
+    }
+    .outfit-info { flex: 1; }
+    .outfit-name {
+      font-family: var(--ff-serif);
+      font-size: 1.2rem;
+      font-weight: 300;
+      color: var(--text);
+    }
+    .outfit-meta-row { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+
+    .image-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .gallery-item {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 3/4;
+      background: var(--card);
+      cursor: pointer;
+      transition: border-color var(--trans), transform var(--trans);
+    }
+    .gallery-item:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gallery-item-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(transparent 50%, rgba(0,0,0,0.85));
+      opacity: 0; transition: opacity var(--trans);
+      display: flex; flex-direction: column; justify-content: flex-end;
+      padding: 1rem;
+    }
+    .gallery-item:hover .gallery-item-overlay { opacity: 1; }
+    .gallery-item-actions { display: flex; gap: 0.5rem; }
+
+    .gallery-item.failed {
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 0.5rem;
+      border-color: var(--danger);
+      color: var(--danger); font-size: 0.75rem; text-align: center; padding: 1rem;
+    }
+    .gallery-item.failed .error-icon { font-size: 1.5rem; }
+
+    /* ── Prompt preview box ──────────────────────────────────────────────── */
+    .prompt-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      font-size: 0.75rem;
+      line-height: 1.7;
+      color: var(--muted);
+      white-space: pre-wrap;
+      font-family: var(--ff-mono);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .prompt-box strong { color: var(--accent); font-weight: 400; }
+
+    /* ── Admin table ─────────────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.2rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-family: var(--ff-serif);
+      font-size: 2.5rem;
+      font-weight: 300;
+      color: var(--accent);
+      display: block;
+    }
+    .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* ── Table ───────────────────────────────────────────────────────────── */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td {
+      text-align: left; padding: 0.7rem 0.8rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+    }
+    .data-table th { color: var(--muted); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.68rem; }
+    .data-table td { color: var(--text); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Alerts ──────────────────────────────────────────────────────────── */
+    .alert {
+      padding: 0.9rem 1.1rem;
+      border-radius: var(--radius);
+      font-size: 0.78rem;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .alert-error   { background: rgba(201,112,112,0.1); border: 1px solid rgba(201,112,112,0.3); color: var(--danger); }
+    .alert-success { background: rgba(126,184,154,0.1); border: 1px solid rgba(126,184,154,0.3); color: var(--success); }
+    .alert-info    { background: rgba(201,169,110,0.1); border: 1px solid rgba(201,169,110,0.3); color: var(--accent); }
+
+    /* ── Loading spinner ─────────────────────────────────────────────────── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(201,169,110,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Separator ───────────────────────────────────────────────────────── */
+    .sep { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+    /* ── Drive input row ─────────────────────────────────────────────────── */
+    .input-row { display: flex; gap: 0.5rem; }
+    .input-row input { flex: 1; }
+
+    /* ── Tabs (hidden sections) ──────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Image count control ─────────────────────────────────────────────── */
+    .count-control {
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .count-btn {
+      width: 32px; height: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text); font-size: 1rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: var(--trans);
+    }
+    .count-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .count-value {
+      font-family: var(--ff-serif);
+      font-size: 1.4rem;
+      color: var(--text);
+      width: 2rem; text-align: center;
+    }
+
+    /* ── Tooltip ─────────────────────────────────────────────────────────── */
+    [data-tip] { position: relative; cursor: help; }
+    [data-tip]::after {
+      content: attr(data-tip);
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      background: #000; color: var(--text);
+      padding: 0.35rem 0.65rem; border-radius: var(--radius);
+      font-size: 0.68rem; white-space: nowrap;
+      pointer-events: none; opacity: 0; transition: opacity var(--trans);
+      z-index: 50;
+    }
+    [data-tip]:hover::after { opacity: 1; }
+
+    /* ── Modal (prompt preview) ──────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      z-index: 200; display: none; align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      max-width: 720px; width: 90%; max-height: 85vh; overflow-y: auto;
+    }
+    .modal-title {
+      font-family: var(--ff-serif);
+      font-size: 1.4rem; font-weight: 300;
+      margin-bottom: 1.2rem;
+      color: var(--text);
+    }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      header { padding: 1rem 1.2rem; }
+      main { padding: 1.5rem 1.2rem; }
+      .nav { padding: 0 1.2rem; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header>
+    <div>
+      <div class="logo">DRAPE<span>AI Outfit Image Generator</span></div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span id="apiStatus">NANO BANANA 2</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Nav ────────────────────────────────────────────────────── -->
+  <nav class="nav">
+    <div class="nav-tab active" data-panel="upload">01 · Upload</div>
+    <div class="nav-tab" data-panel="generate">02 · Generate</div>
+    <div class="nav-tab" data-panel="gallery">03 · Gallery</div>
+    <div class="nav-tab" data-panel="admin">04 · Admin</div>
+  </nav>
+
+  <!-- ── Main ───────────────────────────────────────────────────── -->
+  <main>
+
+    <!-- ══ PANEL 1 — UPLOAD ══════════════════════════════════════ -->
+    <div id="panel-upload" class="tab-panel active">
+      <h2 class="section-title">Upload Assets</h2>
+      <p class="section-subtitle">Upload outfit images (the product — never changes) and reference images for model, vibe, background, pose, and lighting.</p>
+
+      <div class="grid-2">
+
+        <!-- Outfit uploads -->
+        <div class="card">
+          <h3 style="font-family:var(--ff-serif);font-size:1.1rem;font-weight:300;margin-bottom:0.3rem;color:var(--text)">Outfit Images</h3>
+          <p style="font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.6">The garment. Every detail will be preserved exactly.</p>
+
+          <div class="dropzone" id="outfitDropzone">
+            <input type="file" id="outfitFileInput" accept="image/*,.zip" multiple />
+            <span class="dropzone-icon">◻</span>
+            <div class="dropzone-label">
+              Drop outfit images or ZIP here<br/>
+              <strong>or click to browse</strong><br/>
+              JPG · PNG · WEBP · ZIP
+            </div>
+          </div>
+
+          <div class="preview-grid" id="outfitPreviews"></div>
+
+          <hr class="sep" />
+          <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;text-transform:uppercase;letter-spacing:0.08em">Optional Metadata</p>
+          <div class="grid-2" style="gap:0.75rem">
+            <div class="form-row">
+              <label class="form-label">SKU</label>
+              <input type="text" id="outfitSku" placeholder="e.g. ORG-001" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Name</label>
+              <input type="text" id="outfitName" placeholder="e.g. Floral Maxi" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Collection</label>
+              <input type="text" id="outfitCollection" placeholder="e.g. SS25" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">Category</label>
+              <input type="text" id="outfitCategory" placeholder="e.g. Dress" />
+            </div>
+          </div>
+
+          <div style="margin-top:1rem">
+            <button class="btn btn-primary" onclick="uploadOutfits()">
+              <span id="uploadOutfitSpinner" style="display:none" class="spinner"></span>
+              Upload Outfits
+            </button>
+          </div>
+
+          <div id="outfitUploadResult" style="margin-top:1rem"></div>
+
+          <hr class="sep" />
+          <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;text-transform:uppercase;letter-spacing:0.08em">Google Drive Folder</p>
+          <div class="input-row">
+            <input type="text" id="driveOutfitUrl" placeholder="https://drive.google.com/drive/folders/..." />
+            <button class="btn btn-outline btn-sm" onclick="ingestDriveOutfits()">Import</button>
+          </div>
+        </div>
+
+        <!-- Reference uploads -->
+        <div class="card">
+          <h3 style="font-family:var(--ff-serif);font-size:1.1rem;font-weight:300;margin-bottom:0.3rem;color:var(--text)">Reference Images</h3>
+          <p style="font-size:0.72rem;color:var(--muted);margin-bottom:1rem;line-height:1.6">Set the creative direction — model, pose, background, lighting, vibe.</p>
+
+          <div class="form-row" style="margin-bottom:0.75rem">
+            <label class="form-label">Reference Type</label>
+            <select id="refType">
+              <option value="vibe">Vibe / Aesthetic</option>
+              <option value="model">Model Type</option>
+              <option value="background">Background / Setting</option>
+              <option value="pose">Pose</option>
+              <option value="lighting">Lighting</option>
+              <option value="camera">Camera Angle</option>
+              <option value="brand">Brand Style</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div class="dropzone" id="refDropzone">
+            <input type="file" id="refFileInput" accept="image/*,.zip" multiple />
+            <span class="dropzone-icon">◈</span>
+            <div class="dropzone-label">
+              Drop reference images or ZIP here<br/>
+              <strong>or click to browse</strong><br/>
+              JPG · PNG · WEBP · ZIP
+            </div>
+          </div>
+
+          <div class="preview-grid" id="refPreviews"></div>
+
+          <div style="margin-top:1rem">
+            <button class="btn btn-primary" onclick="uploadReferences()">
+              <span id="uploadRefSpinner" style="display:none" class="spinner"></span>
+              Upload References
+            </button>
+          </div>
+
+          <div id="refUploadResult" style="margin-top:1rem"></div>
+
+          <hr class="sep" />
+          <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;text-transform:uppercase;letter-spacing:0.08em">Google Drive Folder</p>
+          <div class="input-row">
+            <input type="text" id="driveRefUrl" placeholder="https://drive.google.com/drive/folders/..." />
+            <button class="btn btn-outline btn-sm" onclick="ingestDriveRefs()">Import</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Uploaded items summary -->
+      <div style="margin-top:1.5rem" class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <span style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Uploaded Items</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadAssets()">↺ Refresh</button>
+        </div>
+        <div id="assetsSummary" style="font-size:0.78rem;color:var(--muted)">Click refresh to load.</div>
+      </div>
+    </div>
+
+    <!-- ══ PANEL 2 — GENERATE ═════════════════════════════════════ -->
+    <div id="panel-generate" class="tab-panel">
+      <h2 class="section-title">Generate Images</h2>
+      <p class="section-subtitle">Select outfits and references, set count, then run generation via Nano Banana 2.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <p class="form-label" style="margin-bottom:0.8rem">Select Outfits</p>
+          <div id="outfitSelectList" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:0.5rem">
+            <span style="color:var(--muted);font-size:0.78rem">Loading outfits…</span>
+          </div>
+
+          <hr class="sep" />
+          <p class="form-label" style="margin-bottom:0.8rem">Select References</p>
+          <div id="refSelectList" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:0.5rem">
+            <span style="color:var(--muted);font-size:0.78rem">Loading references…</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="form-row">
+            <label class="form-label">Images per Outfit</label>
+            <div class="count-control">
+              <button class="count-btn" onclick="adjustCount(-1)">−</button>
+              <span class="count-value" id="countDisplay">4</span>
+              <button class="count-btn" onclick="adjustCount(1)">+</button>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top:1rem">
+            <label class="form-label">Additional Creative Notes (optional)</label>
+            <textarea id="customNotes" placeholder="e.g. outdoor rooftop setting, golden hour, editorial mood, model with natural curly hair"></textarea>
+          </div>
+
+          <hr class="sep" />
+
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="previewPrompt()">
+              Preview Prompt
+            </button>
+            <button class="btn btn-primary" id="generateBtn" onclick="startGeneration()">
+              <span id="generateSpinner" style="display:none" class="spinner"></span>
+              Generate Images
+            </button>
+          </div>
+
+          <div id="generateAlert" style="margin-top:1rem"></div>
+
+          <!-- Active jobs -->
+          <hr class="sep" />
+          <p class="form-label" style="margin-bottom:0.8rem">Active Jobs</p>
+          <div id="jobsList">
+            <span style="color:var(--muted);font-size:0.78rem">No jobs yet.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PANEL 3 — GALLERY ══════════════════════════════════════ -->
+    <div id="panel-gallery" class="tab-panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">
+        <div>
+          <h2 class="section-title">Output Gallery</h2>
+          <p class="section-subtitle" style="margin-bottom:0">Generated images grouped by outfit — download individually or in bulk.</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="loadGallery()">↺ Refresh Gallery</button>
+      </div>
+
+      <div id="galleryContainer">
+        <span style="color:var(--muted);font-size:0.78rem">No generated images yet. Complete a generation job first.</span>
+      </div>
+    </div>
+
+    <!-- ══ PANEL 4 — ADMIN ════════════════════════════════════════ -->
+    <div id="panel-admin" class="tab-panel">
+      <h2 class="section-title">Admin Dashboard</h2>
+      <p class="section-subtitle">System stats, job logs, and storage overview.</p>
+
+      <div class="stat-grid" id="adminStats">
+        <div class="stat-card"><span class="stat-value">—</span><span class="stat-label">Outfits Uploaded</span></div>
+        <div class="stat-card"><span class="stat-value">—</span><span class="stat-label">References Uploaded</span></div>
+        <div class="stat-card"><span class="stat-value">—</span><span class="stat-label">Images Generated</span></div>
+        <div class="stat-card"><span class="stat-value">—</span><span class="stat-label">Failed</span></div>
+        <div class="stat-card"><span class="stat-value">—</span><span class="stat-label">Active Jobs</span></div>
+        <div class="stat-card"><span class="stat-value">—</span><span class="stat-label">Storage (MB)</span></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <span style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">Recent Jobs</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadAdmin()">↺ Refresh</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Status</th>
+              <th>Outfits</th>
+              <th>Completed</th>
+              <th>Failed</th>
+              <th>Started</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="jobsTable">
+            <tr><td colspan="7" style="color:var(--muted);text-align:center;padding:1.5rem">No jobs recorded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Prompt Preview Modal ──────────────────────────────────────── -->
+<div class="modal-backdrop" id="promptModal">
+  <div class="modal">
+    <div class="modal-title">Prompt Preview</div>
+    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.8rem;text-transform:uppercase;letter-spacing:0.08em">Positive Prompt</p>
+    <div class="prompt-box" id="promptPositive"></div>
+    <p style="font-size:0.72rem;color:var(--muted);margin:1rem 0 0.8rem;text-transform:uppercase;letter-spacing:0.08em">Negative Prompt</p>
+    <div class="prompt-box" id="promptNegative"></div>
+    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closePromptModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts ────────────────────────────────────────────────────── -->
+<script>
+  const API = 'http://localhost:8000/api';
+  let imageCount = 4;
+  let uploadedOutfits   = [];   // { outfit_id, filename, ... }
+  let uploadedRefs      = [];   // { ref_id, filename, ref_type, ... }
+  let selectedOutfits   = new Set();
+  let selectedRefs      = new Set();
+  let activePollers     = {};   // job_id -> interval
+  let outfitFileMap     = {};   // outfit_id -> object URL
+  let pendingOutfitFiles = [];
+  let pendingRefFiles    = [];
+
+  // ── Nav ───────────────────────────────────────────────────────────
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+      if (tab.dataset.panel === 'generate') loadGeneratePanel();
+      if (tab.dataset.panel === 'gallery')  loadGallery();
+      if (tab.dataset.panel === 'admin')    loadAdmin();
+    });
+  });
+
+  // ── Drag & drop helpers ───────────────────────────────────────────
+  function initDropzone(dropzoneId, inputId, previewsId, store) {
+    const dz  = document.getElementById(dropzoneId);
+    const inp = document.getElementById(inputId);
+
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('drag-over');
+      handleFiles([...e.dataTransfer.files], previewsId, store);
+    });
+    inp.addEventListener('change', () => {
+      handleFiles([...inp.files], previewsId, store);
+      inp.value = '';
+    });
+  }
+
+  function handleFiles(files, previewsId, store) {
+    files.forEach(file => {
+      store.push(file);
+      addPreview(file, previewsId, store);
+    });
+  }
+
+  function addPreview(file, containerId, store) {
+    const container = document.getElementById(containerId);
+    const reader = new FileReader();
+    reader.onload = e => {
+      const div = document.createElement('div');
+      div.className = 'preview-thumb';
+      div.innerHTML = `
+        <img src="${e.target.result}" alt="${file.name}" />
+        <span class="thumb-label">${file.name}</span>
+        <button class="remove-btn" title="Remove">✕</button>
+      `;
+      div.querySelector('.remove-btn').onclick = () => {
+        const idx = store.indexOf(file);
+        if (idx > -1) store.splice(idx, 1);
+        div.remove();
+      };
+      container.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  initDropzone('outfitDropzone', 'outfitFileInput', 'outfitPreviews', pendingOutfitFiles);
+  initDropzone('refDropzone',    'refFileInput',    'refPreviews',    pendingRefFiles);
+
+  // ── Upload outfits ────────────────────────────────────────────────
+  async function uploadOutfits() {
+    if (!pendingOutfitFiles.length) { showAlert('outfitUploadResult', 'No files selected.', 'error'); return; }
+    const spinner = document.getElementById('uploadOutfitSpinner');
+    spinner.style.display = 'inline-block';
+
+    const fd = new FormData();
+    pendingOutfitFiles.forEach(f => fd.append('files', f));
+    const fields = ['Sku','Name','Collection','Category'];
+    fields.forEach(f => {
+      const val = document.getElementById('outfit'+f).value;
+      if (val) fd.append(f.toLowerCase(), val);
+    });
+
+    try {
+      const res  = await fetch(`${API}/upload/outfit`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+      data.forEach(o => uploadedOutfits.push(o));
+      showAlert('outfitUploadResult', `✓ ${data.length} outfit(s) uploaded successfully.`, 'success');
+      document.getElementById('outfitPreviews').innerHTML = '';
+      pendingOutfitFiles.length = 0;
+    } catch(err) {
+      showAlert('outfitUploadResult', err.message, 'error');
+    } finally {
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ── Upload references ─────────────────────────────────────────────
+  async function uploadReferences() {
+    if (!pendingRefFiles.length) { showAlert('refUploadResult', 'No files selected.', 'error'); return; }
+    const spinner = document.getElementById('uploadRefSpinner');
+    spinner.style.display = 'inline-block';
+
+    const fd = new FormData();
+    pendingRefFiles.forEach(f => fd.append('files', f));
+    fd.append('ref_type', document.getElementById('refType').value);
+
+    try {
+      const res  = await fetch(`${API}/upload/reference`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+      data.forEach(r => uploadedRefs.push(r));
+      showAlert('refUploadResult', `✓ ${data.length} reference(s) uploaded.`, 'success');
+      document.getElementById('refPreviews').innerHTML = '';
+      pendingRefFiles.length = 0;
+    } catch(err) {
+      showAlert('refUploadResult', err.message, 'error');
+    } finally {
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ── Google Drive ingestion ────────────────────────────────────────
+  async function ingestDriveOutfits() {
+    const url = document.getElementById('driveOutfitUrl').value.trim();
+    if (!url) return;
+    try {
+      const res = await fetch(`${API}/upload/drive/outfits`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ folder_url: url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+      data.forEach(o => uploadedOutfits.push(o));
+      showAlert('outfitUploadResult', `✓ ${data.length} outfit(s) imported from Drive.`, 'success');
+    } catch(err) { showAlert('outfitUploadResult', err.message, 'error'); }
+  }
+
+  async function ingestDriveRefs() {
+    const url = document.getElementById('driveRefUrl').value.trim();
+    if (!url) return;
+    try {
+      const res = await fetch(`${API}/upload/drive/references`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ folder_url: url, ref_type: document.getElementById('refType').value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+      data.forEach(r => uploadedRefs.push(r));
+      showAlert('refUploadResult', `✓ ${data.length} reference(s) imported from Drive.`, 'success');
+    } catch(err) { showAlert('refUploadResult', err.message, 'error'); }
+  }
+
+  // ── Load assets summary ───────────────────────────────────────────
+  async function loadAssets() {
+    try {
+      const [oRes, rRes] = await Promise.all([
+        fetch(`${API}/upload/outfits`), fetch(`${API}/upload/references`)
+      ]);
+      const outfits = await oRes.json();
+      const refs    = await rRes.json();
+      uploadedOutfits = outfits;
+      uploadedRefs    = refs;
+
+      const el = document.getElementById('assetsSummary');
+      el.innerHTML = `
+        <span style="color:var(--text)">${outfits.length}</span> <span style="color:var(--muted)">outfits</span>
+        &nbsp;&nbsp;·&nbsp;&nbsp;
+        <span style="color:var(--text)">${refs.length}</span> <span style="color:var(--muted)">references</span>
+        &nbsp;&nbsp;·&nbsp;&nbsp;
+        ${refs.map(r=>`<span class="tag tag-${r.ref_type}">${r.ref_type}</span>`).join(' ')}
+      `;
+    } catch(e) {
+      document.getElementById('assetsSummary').innerHTML = `<span style="color:var(--danger)">Cannot reach API — is the backend running?</span>`;
+    }
+  }
+
+  // ── Generate panel ────────────────────────────────────────────────
+  async function loadGeneratePanel() {
+    await loadAssets();
+
+    // Outfits checklist
+    const oList = document.getElementById('outfitSelectList');
+    if (!uploadedOutfits.length) {
+      oList.innerHTML = '<span style="color:var(--muted);font-size:0.78rem">No outfits uploaded yet.</span>';
+    } else {
+      oList.innerHTML = uploadedOutfits.map(o => `
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;padding:0.4rem 0.5rem;border-radius:4px;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''">
+          <input type="checkbox" value="${o.outfit_id}" onchange="toggleOutfit('${o.outfit_id}',this.checked)" style="accent-color:var(--accent);width:14px;height:14px" />
+          <span style="font-size:0.78rem;color:var(--text)">${o.filename}</span>
+          ${o.sku ? `<span style="font-size:0.68rem;color:var(--muted)">${o.sku}</span>` : ''}
+        </label>
+      `).join('');
+    }
+
+    // References checklist
+    const rList = document.getElementById('refSelectList');
+    if (!uploadedRefs.length) {
+      rList.innerHTML = '<span style="color:var(--muted);font-size:0.78rem">No references uploaded yet.</span>';
+    } else {
+      rList.innerHTML = uploadedRefs.map(r => `
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;padding:0.4rem 0.5rem;border-radius:4px;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''">
+          <input type="checkbox" value="${r.ref_id}" onchange="toggleRef('${r.ref_id}',this.checked)" style="accent-color:var(--accent);width:14px;height:14px" />
+          <span class="tag tag-${r.ref_type}">${r.ref_type}</span>
+          <span style="font-size:0.78rem;color:var(--text)">${r.filename}</span>
+        </label>
+      `).join('');
+    }
+  }
+
+  function toggleOutfit(id, checked) { checked ? selectedOutfits.add(id) : selectedOutfits.delete(id); }
+  function toggleRef(id, checked)    { checked ? selectedRefs.add(id)    : selectedRefs.delete(id); }
+
+  function adjustCount(delta) {
+    imageCount = Math.min(10, Math.max(1, imageCount + delta));
+    document.getElementById('countDisplay').textContent = imageCount;
+  }
+
+  // ── Prompt preview ────────────────────────────────────────────────
+  async function previewPrompt() {
+    if (!selectedOutfits.size) { showAlert('generateAlert', 'Select at least one outfit.', 'error'); return; }
+    const outfitId = [...selectedOutfits][0];
+    const refIds   = [...selectedRefs].join(',');
+    try {
+      const res  = await fetch(`${API}/generate/preview-prompt/${outfitId}?reference_ids=${refIds}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+      document.getElementById('promptPositive').textContent = data.prompt;
+      document.getElementById('promptNegative').textContent = data.negative_prompt;
+      document.getElementById('promptModal').classList.add('open');
+    } catch(err) { showAlert('generateAlert', err.message, 'error'); }
+  }
+
+  function closePromptModal() {
+    document.getElementById('promptModal').classList.remove('open');
+  }
+
+  // ── Start generation ──────────────────────────────────────────────
+  async function startGeneration() {
+    if (!selectedOutfits.size) { showAlert('generateAlert', 'Select at least one outfit.', 'error'); return; }
+
+    const btn  = document.getElementById('generateBtn');
+    const spin = document.getElementById('generateSpinner');
+    btn.disabled = true; spin.style.display = 'inline-block';
+    clearAlert('generateAlert');
+
+    try {
+      const body = {
+        outfit_ids:       [...selectedOutfits],
+        reference_ids:    [...selectedRefs],
+        images_per_outfit: imageCount,
+        custom_prompt_notes: document.getElementById('customNotes').value || null,
+        preview_prompts: false,
+      };
+      const res  = await fetch(`${API}/generate/`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Generation failed');
+
+      showAlert('generateAlert', `✓ Job started — ID: ${data.job_id.slice(0,8)}`, 'success');
+      renderJob(data);
+      pollJob(data.job_id);
+    } catch(err) {
+      showAlert('generateAlert', err.message, 'error');
+    } finally {
+      btn.disabled = false; spin.style.display = 'none';
+    }
+  }
+
+  function renderJob(job) {
+    const el = document.getElementById('jobsList');
+    if (el.querySelector('span')) el.innerHTML = '';
+
+    const shortId = job.job_id.slice(0,8);
+    const div = document.createElement('div');
+    div.id = 'job-' + job.job_id;
+    div.className = `job-card ${job.status}`;
+    div.innerHTML = `
+      <div class="job-meta">
+        <span class="job-id">JOB — ${shortId}</span>
+        <span class="job-status-badge badge-${job.status}">${job.status}</span>
+      </div>
+      <div class="progress-bar-track" style="margin-bottom:0.6rem">
+        <div class="progress-bar-fill" id="bar-${job.job_id}" style="width:0%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--muted)">
+        <span id="prog-${job.job_id}">0 / ${job.total_requested} images</span>
+        <button class="btn btn-ghost btn-sm" onclick="downloadJobZip('${job.job_id}')" style="padding:0;color:var(--accent)">↓ Download ZIP</button>
+      </div>
+      <div id="err-${job.job_id}" style="margin-top:0.5rem;font-size:0.7rem;color:var(--danger)"></div>
+    `;
+    el.prepend(div);
+  }
+
+  function pollJob(jobId) {
+    if (activePollers[jobId]) return;
+    activePollers[jobId] = setInterval(async () => {
+      try {
+        const res  = await fetch(`${API}/generate/status/${jobId}`);
+        const data = await res.json();
+        updateJobCard(data);
+        if (['completed','failed','partial'].includes(data.status)) {
+          clearInterval(activePollers[jobId]);
+          delete activePollers[jobId];
+          if (data.status !== 'failed') loadGallery();
+        }
+      } catch(_) {}
+    }, 2500);
+  }
+
+  function updateJobCard(job) {
+    const card = document.getElementById('job-' + job.job_id);
+    if (!card) return;
+    card.className = `job-card ${job.status}`;
+
+    const badge = card.querySelector('.job-status-badge');
+    badge.className = `job-status-badge badge-${job.status}`;
+    badge.textContent = job.status;
+
+    const pct = job.total_requested ? Math.round((job.completed / job.total_requested) * 100) : 0;
+    document.getElementById('bar-' + job.job_id).style.width = pct + '%';
+    document.getElementById('prog-' + job.job_id).textContent = `${job.completed} / ${job.total_requested} images`;
+
+    const errEl = document.getElementById('err-' + job.job_id);
+    if (job.error_log && job.error_log.length) {
+      errEl.textContent = job.error_log.slice(-1)[0];
+    }
+  }
+
+  async function downloadJobZip(jobId) {
+    window.open(`${API}/download/job/${jobId}/zip`, '_blank');
+  }
+
+  // ── Gallery ───────────────────────────────────────────────────────
+  async function loadGallery() {
+    const container = document.getElementById('galleryContainer');
+    container.innerHTML = '<span style="color:var(--muted);font-size:0.78rem">Loading gallery…</span>';
+    try {
+      const res  = await fetch(`${API}/gallery/`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+
+      if (!data.groups.length) {
+        container.innerHTML = '<span style="color:var(--muted);font-size:0.78rem">No generated images yet.</span>';
+        return;
+      }
+
+      container.innerHTML = data.groups.map(group => `
+        <div class="gallery-group">
+          <div class="gallery-group-header">
+            <img class="outfit-thumb" src="${group.outfit_url}" alt="${group.outfit_filename}" onerror="this.style.display='none'" />
+            <div class="outfit-info">
+              <div class="outfit-name">${group.name || group.outfit_filename}</div>
+              <div class="outfit-meta-row">
+                ${group.sku ? `SKU: ${group.sku} · ` : ''}
+                ${group.images.filter(i=>i.status==='success').length} image(s) generated
+              </div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="downloadOutfitZip('${group.outfit_id}')">↓ Download All</button>
+          </div>
+          <div class="image-gallery">
+            ${group.images.map((img, idx) => img.status === 'success' ? `
+              <div class="gallery-item">
+                <img src="${img.url}" alt="Generated ${idx+1}" loading="lazy" onerror="this.parentElement.classList.add('failed');this.remove()" />
+                <div class="gallery-item-overlay">
+                  <div class="gallery-item-actions">
+                    <button class="btn btn-outline btn-sm" onclick="downloadImage('${group.outfit_id}','${img.filename}')">↓ Save</button>
+                    <button class="btn btn-ghost btn-sm" onclick="viewPrompt(${JSON.stringify(img.prompt_used).replace(/</g,'&lt;')})">Prompt</button>
+                  </div>
+                </div>
+              </div>
+            ` : `
+              <div class="gallery-item failed">
+                <span class="error-icon">✕</span>
+                <span>Generation failed</span>
+                <span style="font-size:0.65rem;color:var(--muted)">${img.error || 'Unknown error'}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    } catch(err) {
+      container.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    }
+  }
+
+  function downloadImage(outfitId, filename) {
+    window.open(`${API}/download/image/${outfitId}/${filename}`, '_blank');
+  }
+
+  function downloadOutfitZip(outfitId) {
+    window.open(`${API}/download/outfit/${outfitId}/zip`, '_blank');
+  }
+
+  function viewPrompt(prompt) {
+    document.getElementById('promptPositive').textContent = prompt;
+    document.getElementById('promptNegative').textContent = '';
+    document.getElementById('promptModal').classList.add('open');
+  }
+
+  // ── Admin ─────────────────────────────────────────────────────────
+  async function loadAdmin() {
+    try {
+      const [statsRes, jobsRes] = await Promise.all([
+        fetch(`${API}/admin/stats`), fetch(`${API}/admin/jobs`)
+      ]);
+      const stats = await statsRes.json();
+      const jobs  = await jobsRes.json();
+
+      // Update stat cards
+      const grid = document.getElementById('adminStats');
+      const vals = [
+        stats.total_outfits_uploaded, stats.total_references_uploaded,
+        stats.total_images_generated, stats.total_failed,
+        stats.active_jobs,            stats.storage_used_mb
+      ];
+      grid.querySelectorAll('.stat-value').forEach((el, i) => el.textContent = vals[i] ?? '—');
+
+      // Jobs table
+      const tbody = document.getElementById('jobsTable');
+      if (!jobs.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:1.5rem">No jobs recorded.</td></tr>';
+      } else {
+        tbody.innerHTML = jobs.map(j => `
+          <tr>
+            <td style="font-family:var(--ff-mono);color:var(--muted)">${j.job_id.slice(0,8)}</td>
+            <td><span class="job-status-badge badge-${j.status}">${j.status}</span></td>
+            <td>${j.outfit_ids.length}</td>
+            <td style="color:var(--success)">${j.completed}</td>
+            <td style="color:var(--danger)">${j.failed}</td>
+            <td>${j.started_at ? new Date(j.started_at).toLocaleTimeString() : '—'}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" onclick="downloadJobZip('${j.job_id}')">↓ ZIP</button>
+              ${j.status==='processing'?`<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">Cancel</button>`:''}
+            </td>
+          </tr>
+        `).join('');
+      }
+    } catch(e) {
+      document.getElementById('adminStats').innerHTML = `<div class="alert alert-error" style="grid-column:1/-1">Cannot reach API — is the backend running?</div>`;
+    }
+  }
+
+  async function cancelJob(jobId) {
+    await fetch(`${API}/admin/jobs/${jobId}`, { method: 'DELETE' });
+    loadAdmin();
+  }
+
+  // ── Utilities ─────────────────────────────────────────────────────
+  function showAlert(containerId, msg, type='info') {
+    document.getElementById(containerId).innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  }
+  function clearAlert(containerId) {
+    document.getElementById(containerId).innerHTML = '';
+  }
+
+  // Close modal on backdrop click
+  document.getElementById('promptModal').addEventListener('click', function(e) {
+    if (e.target === this) closePromptModal();
+  });
+
+  // Init
+  loadAssets();
+</script>
+</body>
+</html>
